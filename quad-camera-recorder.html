@@ -1,0 +1,1269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QUAD-CAM Recorder</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&display=swap');
+
+:root {
+  --bg:       #060810;
+  --panel:    #0a0d16;
+  --card:     #0e1220;
+  --border:   #161d30;
+  --border2:  #1e2840;
+  --accent:   #00cfff;
+  --accent2:  #0077ff;
+  --rec:      #ff2244;
+  --pause:    #ffaa00;
+  --green:    #00e676;
+  --text:     #8899bb;
+  --texthi:   #c8d8f0;
+  --dim:      #2a3550;
+  --dim2:     #1a2238;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Rajdhani', sans-serif;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Scanlines */
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background: repeating-linear-gradient(
+    0deg, transparent, transparent 3px,
+    rgba(0,0,0,0.08) 3px, rgba(0,0,0,0.08) 4px
+  );
+  pointer-events: none; z-index: 9998;
+}
+
+/* Vignette */
+body::after {
+  content: '';
+  position: fixed; inset: 0;
+  background: radial-gradient(ellipse at center, transparent 60%, rgba(0,0,0,0.5) 100%);
+  pointer-events: none; z-index: 9997;
+}
+
+/* ══════════════════════════════════════════
+   HEADER
+══════════════════════════════════════════ */
+header {
+  flex-shrink: 0;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  padding: 0 24px;
+  height: 52px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  position: relative;
+}
+
+header::after {
+  content: '';
+  position: absolute;
+  bottom: -2px; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--accent2), var(--accent), var(--accent2), transparent);
+  opacity: 0.4;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.logo-icon {
+  width: 28px; height: 28px;
+  border: 1.5px solid var(--accent2);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px;
+  padding: 4px;
+}
+.logo-icon span {
+  background: var(--accent2);
+  display: block;
+  opacity: 0.7;
+}
+.logo-text {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 13px;
+  letter-spacing: 6px;
+  color: var(--accent);
+  text-transform: uppercase;
+}
+.logo-ver {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 3px;
+  color: var(--dim2);
+  border: 1px solid var(--border2);
+  padding: 2px 6px;
+  margin-left: 4px;
+}
+
+.hclock {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 28px;
+  letter-spacing: 4px;
+  color: var(--accent);
+  text-align: center;
+  text-shadow: 0 0 20px rgba(0,207,255,0.3);
+}
+.hdate {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 3px;
+  color: var(--dim);
+  text-align: center;
+  margin-top: 1px;
+}
+
+.hright {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 16px;
+}
+.hstatus {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--dim);
+  text-transform: uppercase;
+}
+.hdot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--dim);
+  flex-shrink: 0;
+  box-shadow: 0 0 0 0 transparent;
+}
+.hdot.rec    { background: var(--rec);   animation: recpulse 0.9s infinite; }
+.hdot.paused { background: var(--pause); }
+.hdot.ready  { background: var(--green); }
+
+@keyframes recpulse {
+  0%   { opacity:1; box-shadow: 0 0 0 0 rgba(255,34,68,0.5); }
+  70%  { opacity:1; box-shadow: 0 0 0 6px rgba(255,34,68,0); }
+  100% { opacity:1; box-shadow: 0 0 0 0 rgba(255,34,68,0); }
+}
+
+/* ══════════════════════════════════════════
+   FILE WARNING
+══════════════════════════════════════════ */
+#fileWarning {
+  display: none;
+  flex-shrink: 0;
+  background: linear-gradient(90deg, #3a0010, var(--rec), #3a0010);
+  color: #fff;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 2px;
+  padding: 9px 24px;
+  text-align: center;
+  line-height: 1.8;
+  border-bottom: 1px solid rgba(255,34,68,0.3);
+}
+
+/* ══════════════════════════════════════════
+   SETUP SCREEN
+══════════════════════════════════════════ */
+#setupScreen {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 28px;
+  padding: 28px;
+  overflow-y: auto;
+  background: var(--bg);
+}
+
+.setup-header {
+  text-align: center;
+}
+.setup-title {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 18px;
+  letter-spacing: 8px;
+  color: var(--accent);
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+.setup-divider {
+  width: 200px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--accent2), transparent);
+  margin: 10px auto;
+}
+.setup-sub {
+  font-size: 14px;
+  letter-spacing: 1px;
+  color: var(--text);
+  line-height: 1.7;
+  max-width: 680px;
+  text-align: center;
+}
+.setup-sub strong { color: var(--accent); font-weight: 600; }
+
+/* 2x2 grid of slot cards */
+.cam-slots {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  width: 100%;
+  max-width: 780px;
+}
+
+.slot-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  position: relative;
+  transition: border-color 0.2s;
+}
+.slot-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: var(--border2);
+  transition: background 0.2s;
+}
+.slot-card.connected::before { background: linear-gradient(90deg, var(--accent2), var(--accent)); }
+.slot-card.connected { border-color: var(--border2); }
+
+.slot-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.slot-num {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 4px;
+  color: var(--accent2);
+}
+.slot-status {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 2px;
+  color: var(--dim);
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+}
+.slot-status.ok  { color: var(--green);  border-color: rgba(0,230,118,0.3); background: rgba(0,230,118,0.05); }
+.slot-status.err { color: var(--rec);    border-color: rgba(255,34,68,0.3);  background: rgba(255,34,68,0.05); }
+.slot-status.loading { color: var(--pause); border-color: rgba(255,170,0,0.3); }
+
+.slot-preview {
+  width: 100%;
+  aspect-ratio: 16/9;
+  background: #000;
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+.slot-preview video {
+  width: 100%; height: 100%;
+  object-fit: cover; display: block;
+}
+.preview-overlay {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 8px;
+  background: rgba(6,8,16,0.85);
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px; letter-spacing: 3px; color: var(--dim);
+}
+.preview-overlay svg { opacity: 0.3; }
+
+.slot-select-wrap { position: relative; }
+.slot-select {
+  width: 100%;
+  background: var(--bg);
+  color: var(--texthi);
+  border: 1px solid var(--border2);
+  padding: 8px 32px 8px 12px;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 1px;
+  cursor: pointer;
+  appearance: none;
+  transition: border-color 0.15s;
+}
+.slot-select:focus { outline: none; border-color: var(--accent2); }
+.slot-select option { background: var(--panel); }
+.select-arrow {
+  position: absolute; right: 10px; top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none; color: var(--dim);
+  font-size: 10px;
+}
+
+.setup-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.btn-launch {
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 700;
+  font-size: 16px;
+  letter-spacing: 6px;
+  text-transform: uppercase;
+  padding: 14px 56px;
+  border: 1px solid var(--green);
+  color: var(--green);
+  background: transparent;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  transition: color 0.2s;
+}
+.btn-launch::before {
+  content: '';
+  position: absolute; inset: 0;
+  background: var(--green);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.2s;
+}
+.btn-launch:hover::before { transform: scaleX(1); }
+.btn-launch:hover { color: #000; }
+.btn-launch span { position: relative; z-index: 1; }
+.btn-launch:disabled { opacity: 0.2; cursor: not-allowed; pointer-events: none; }
+
+.setup-hint {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: var(--dim);
+}
+
+/* ══════════════════════════════════════════
+   RECORDER SCREEN
+══════════════════════════════════════════ */
+#recScreen {
+  flex: 1;
+  display: none;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* 2x2 camera grid */
+.cam-grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 3px;
+  padding: 3px;
+  background: #020305;
+  overflow: hidden;
+}
+
+.cam-cell {
+  position: relative;
+  background: #000;
+  overflow: hidden;
+}
+
+.cam-cell canvas {
+  width: 100%; height: 100%;
+  object-fit: contain;
+  display: block;
+  background: #000;
+}
+
+.cam-cell video { display: none; }
+
+/* Corner brackets decoration */
+.cam-ui {
+  position: absolute; inset: 0;
+  pointer-events: none;
+}
+.cam-ui::before, .cam-ui::after {
+  content: '';
+  position: absolute;
+  width: 20px; height: 20px;
+  border-style: solid;
+  border-color: rgba(0,207,255,0.4);
+}
+.cam-ui::before { top: 10px; left: 10px; border-width: 1.5px 0 0 1.5px; }
+.cam-ui::after  { bottom: 10px; right: 10px; border-width: 0 1.5px 1.5px 0; }
+
+/* Bottom-right corner bracket (via extra element) */
+.cam-corner-tr, .cam-corner-bl {
+  position: absolute;
+  width: 20px; height: 20px;
+  border-style: solid;
+  border-color: rgba(0,207,255,0.4);
+  pointer-events: none;
+}
+.cam-corner-tr { top: 10px; right: 10px; border-width: 1.5px 1.5px 0 0; }
+.cam-corner-bl { bottom: 10px; left: 10px; border-width: 0 0 1.5px 1.5px; }
+
+.cam-badge-label {
+  position: absolute;
+  top: 10px; left: 10px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 11px; letter-spacing: 3px;
+  color: var(--accent);
+  background: rgba(6,8,16,0.75);
+  padding: 3px 10px;
+  border: 1px solid rgba(0,207,255,0.2);
+  backdrop-filter: blur(4px);
+}
+
+.cam-badge-num {
+  position: absolute;
+  top: 10px; right: 10px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 18px; letter-spacing: 1px;
+  color: rgba(0,207,255,0.15);
+  font-weight: bold;
+  pointer-events: none;
+}
+
+.rec-badge {
+  position: absolute;
+  top: 10px; right: 10px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px; letter-spacing: 3px;
+  color: var(--rec);
+  background: rgba(6,8,16,0.8);
+  padding: 3px 10px;
+  border: 1px solid rgba(255,34,68,0.3);
+  display: none; align-items: center; gap: 6px;
+  backdrop-filter: blur(4px);
+}
+.rec-badge .dot {
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: var(--rec);
+  animation: recpulse 0.8s infinite;
+}
+.rec-badge.show { display: flex; }
+
+.pause-badge {
+  position: absolute;
+  top: 10px; right: 10px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px; letter-spacing: 3px;
+  color: var(--pause);
+  background: rgba(6,8,16,0.8);
+  padding: 3px 10px;
+  border: 1px solid rgba(255,170,0,0.3);
+  display: none;
+}
+.pause-badge.show { display: block; }
+
+.no-signal-rec {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 10px;
+  background: #020305;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px; letter-spacing: 3px; color: var(--dim);
+}
+.no-signal-rec svg { opacity: 0.2; }
+
+/* ══════════════════════════════════════════
+   CONTROLS BAR
+══════════════════════════════════════════ */
+.controls {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 0;
+  height: 64px;
+  background: var(--panel);
+  border-top: 1px solid var(--border);
+  position: relative;
+}
+.controls::before {
+  content: '';
+  position: absolute;
+  top: -2px; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--accent2), var(--accent), var(--accent2), transparent);
+  opacity: 0.35;
+}
+
+.ctrl-section {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 20px;
+  border-right: 1px solid var(--border);
+  height: 100%;
+}
+.ctrl-section:last-child { border-right: none; margin-left: auto; }
+
+.btn {
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  padding: 10px 26px;
+  border: 1px solid;
+  cursor: pointer;
+  background: transparent;
+  position: relative;
+  overflow: hidden;
+  transition: color 0.15s;
+  white-space: nowrap;
+}
+.btn::before {
+  content: '';
+  position: absolute; inset: 0;
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.15s;
+}
+.btn:hover::before { transform: scaleX(1); }
+.btn span { position: relative; z-index: 1; }
+.btn:disabled { opacity: 0.18; cursor: not-allowed; pointer-events: none; }
+
+.btn-start { color: var(--green); border-color: var(--green); }
+.btn-start::before { background: var(--green); }
+.btn-start:hover { color: #000; }
+
+.btn-pause { color: var(--pause); border-color: var(--pause); }
+.btn-pause::before { background: var(--pause); }
+.btn-pause:hover { color: #000; }
+
+.btn-end   { color: var(--rec);   border-color: var(--rec); }
+.btn-end::before { background: var(--rec); }
+.btn-end:hover { color: #fff; }
+
+.btn-back  { color: var(--dim); border-color: var(--border2); font-size: 11px; padding: 10px 16px; }
+.btn-back::before { background: var(--border2); }
+.btn-back:hover { color: var(--text); }
+
+.timer-display {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.timer {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 28px;
+  letter-spacing: 4px;
+  color: var(--rec);
+  line-height: 1;
+}
+.timer-label {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 8px;
+  letter-spacing: 3px;
+  color: var(--dim);
+  text-transform: uppercase;
+}
+
+.cam-indicators {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+}
+.cam-ind {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 2px;
+  color: var(--dim);
+}
+.cam-ind-dot {
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: var(--dim);
+  flex-shrink: 0;
+}
+.cam-ind-dot.live   { background: var(--green); animation: recpulse 1s infinite; }
+.cam-ind-dot.paused { background: var(--pause); }
+.cam-ind-dot.nosig  { background: var(--dim); }
+
+.saves-area {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 52px;
+  overflow-y: auto;
+}
+.saves-title {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 8px; letter-spacing: 3px; color: var(--dim);
+  text-transform: uppercase; margin-bottom: 2px;
+}
+.save-link {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 9px; letter-spacing: 1px;
+  color: var(--accent);
+  background: rgba(0,207,255,0.04);
+  border: 1px solid rgba(0,207,255,0.15);
+  padding: 3px 10px;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background 0.15s;
+  display: flex; align-items: center; gap: 6px;
+}
+.save-link:hover { background: rgba(0,207,255,0.1); }
+.save-link .dl-icon { color: var(--dim); font-size: 10px; }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header>
+  <div class="logo">
+    <div class="logo-icon">
+      <span></span><span></span><span></span><span></span>
+    </div>
+    <span class="logo-text">QUADCAM</span>
+    <span class="logo-ver">v4.0</span>
+  </div>
+
+  <div>
+    <div class="hclock" id="hclock">00:00:00</div>
+    <div class="hdate" id="hdate">----/--/--</div>
+  </div>
+
+  <div class="hright">
+    <div class="hstatus">
+      <span id="statusText">SETUP</span>
+      <span class="hdot" id="hdot"></span>
+    </div>
+  </div>
+</header>
+
+<!-- FILE:// WARNING -->
+<div id="fileWarning">
+  ⚠ &nbsp; CAMERA ACCESS BLOCKED — Do not open this file directly.
+  Run <strong>start_recorder.py</strong> or <strong>START_RECORDER.bat</strong> to launch via localhost.
+</div>
+
+<!-- ════════════════════════════════════════
+     SETUP SCREEN
+════════════════════════════════════════ -->
+<div id="setupScreen">
+  <div class="setup-header">
+    <div class="setup-title">Camera Configuration</div>
+    <div class="setup-divider"></div>
+    <div class="setup-sub" id="setupSub">
+      Requesting camera access — please click <strong>Allow</strong> in your browser…
+    </div>
+  </div>
+
+  <!-- 2x2 slot cards -->
+  <div class="cam-slots" id="camSlots"></div>
+
+  <div class="setup-actions">
+    <button class="btn-launch" id="btnLaunch" disabled onclick="launchRecorder()">
+      <span>▶ &nbsp; LAUNCH RECORDER</span>
+    </button>
+    <div class="setup-hint" id="setupHint">ASSIGN AT LEAST ONE CAMERA TO CONTINUE</div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════
+     RECORDER SCREEN
+════════════════════════════════════════ -->
+<div id="recScreen">
+  <div class="cam-grid" id="camGrid"></div>
+
+  <div class="controls">
+    <!-- Back -->
+    <div class="ctrl-section">
+      <button class="btn btn-back" id="btnBack" onclick="goBack()"><span>← SETUP</span></button>
+    </div>
+
+    <!-- Record controls -->
+    <div class="ctrl-section">
+      <button class="btn btn-start" id="btnStart" onclick="startRec()"><span>▶ START</span></button>
+      <button class="btn btn-pause" id="btnPause" onclick="togglePause()" disabled><span>⏸ PAUSE</span></button>
+      <button class="btn btn-end"   id="btnEnd"   onclick="endRec()"    disabled><span>■ SAVE</span></button>
+    </div>
+
+    <!-- Timer -->
+    <div class="ctrl-section">
+      <div class="timer-display">
+        <div class="timer" id="timer">00:00</div>
+        <div class="timer-label">REC TIME</div>
+      </div>
+    </div>
+
+    <!-- Camera status indicators -->
+    <div class="ctrl-section">
+      <div class="cam-indicators" id="camIndicators"></div>
+    </div>
+
+    <!-- Saved files -->
+    <div class="ctrl-section" id="savesSection" style="display:none">
+      <div class="saves-area">
+        <div class="saves-title">Saved</div>
+        <div id="saveLinks"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+// ══════════════════════════════════════════
+//  CONSTANTS & STATE
+// ══════════════════════════════════════════
+const NUM_SLOTS = 4;
+const DEFAULT_NAMES = ['CAM-01','CAM-02','CAM-03','CAM-04'];
+
+const PAD  = n => String(n).padStart(2,'0');
+const fmtT = d => `${PAD(d.getHours())}:${PAD(d.getMinutes())}:${PAD(d.getSeconds())}`;
+const fmtD = d => `${d.getFullYear()}/${PAD(d.getMonth()+1)}/${PAD(d.getDate())}`;
+const fmtDFile = d => `${d.getFullYear()}-${PAD(d.getMonth()+1)}-${PAD(d.getDate())}`;
+
+let allDevices   = [];
+let slotStreams   = Array(NUM_SLOTS).fill(null);   // setup preview streams
+let slotNames    = [...DEFAULT_NAMES];
+let slotSelects  = [];
+let slotPrevVids = [];
+let slotStatEls  = [];
+let slotCards    = [];
+
+let recStreams    = Array(NUM_SLOTS).fill(null);
+let canvases     = [];
+let ctxs         = [];
+let recorders    = Array(NUM_SLOTS).fill(null);
+let chunks       = Array.from({length:NUM_SLOTS},()=>[]);
+let recState     = 'idle';
+let elapsed      = 0;
+let timerIv      = null;
+
+// ══════════════════════════════════════════
+//  CLOCK
+// ══════════════════════════════════════════
+function tickHeaderClock() {
+  const now = new Date();
+  document.getElementById('hclock').textContent = fmtT(now);
+  document.getElementById('hdate').textContent  = fmtD(now);
+}
+setInterval(tickHeaderClock, 1000);
+tickHeaderClock();
+
+// File:// detection
+if (location.protocol === 'file:') document.getElementById('fileWarning').style.display = 'block';
+
+// ══════════════════════════════════════════
+//  BUILD SETUP SLOTS (2x2 grid)
+// ══════════════════════════════════════════
+const slotsContainer = document.getElementById('camSlots');
+
+for (let i = 0; i < NUM_SLOTS; i++) {
+  const card = document.createElement('div');
+  card.className = 'slot-card';
+  card.id = `slotCard${i}`;
+  card.innerHTML = `
+    <div class="slot-header">
+      <div class="slot-num">SLOT ${i+1}</div>
+      <div class="slot-status" id="slotSt${i}">UNASSIGNED</div>
+    </div>
+    <div class="slot-preview" id="slotPrev${i}">
+      <video id="slotVid${i}" autoplay muted playsinline></video>
+      <div class="preview-overlay" id="slotOvl${i}">
+        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/>
+          <line x1="1" y1="1" x2="23" y2="23"/>
+        </svg>
+        <span id="slotOvlTxt${i}">NO PREVIEW</span>
+      </div>
+    </div>
+    <div class="slot-select-wrap">
+      <select class="slot-select" id="slotSel${i}" onchange="assignCam(${i})">
+        <option value="">— Select camera —</option>
+      </select>
+      <span class="select-arrow">▼</span>
+    </div>`;
+  slotsContainer.appendChild(card);
+
+  slotCards.push(card);
+  slotSelects.push(document.getElementById(`slotSel${i}`));
+  slotPrevVids.push(document.getElementById(`slotVid${i}`));
+  slotStatEls.push(document.getElementById(`slotSt${i}`));
+}
+
+// ══════════════════════════════════════════
+//  INIT — request permission + enumerate
+// ══════════════════════════════════════════
+async function init() {
+  try {
+    const tmp = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+    tmp.getTracks().forEach(t => t.stop());
+  } catch(e) {
+    document.getElementById('setupSub').innerHTML =
+      `<span style="color:var(--rec)">⚠ Camera permission denied. Click the camera icon in your address bar, allow access, and refresh.</span>`;
+    return;
+  }
+
+  // Re-enumerate after permission — labels now populated
+  const devices = await navigator.mediaDevices.enumerateDevices();
+  allDevices = devices.filter(d => d.kind === 'videoinput');
+
+  if (allDevices.length === 0) {
+    document.getElementById('setupSub').innerHTML =
+      `<span style="color:var(--rec)">⚠ No cameras detected. Connect your USB cameras and refresh the page.</span>`;
+    return;
+  }
+
+  // Build dropdown options
+  for (let i = 0; i < NUM_SLOTS; i++) {
+    const sel = slotSelects[i];
+    allDevices.forEach((dev, idx) => {
+      const opt = document.createElement('option');
+      opt.value = dev.deviceId;
+      opt.textContent = dev.label || `Camera ${idx+1}`;
+      sel.appendChild(opt);
+    });
+  }
+
+  // Auto-assign: slot 0→cam0, slot 1→cam1, etc.
+  const autoCount = Math.min(allDevices.length, NUM_SLOTS);
+  for (let i = 0; i < autoCount; i++) {
+    slotSelects[i].value = allDevices[i].deviceId;
+    await assignCam(i);
+  }
+
+  const n = allDevices.length;
+  document.getElementById('setupSub').innerHTML =
+    `<strong>${n} camera${n>1?'s':''} detected</strong> and auto-assigned below. 
+     You can reassign any slot using the dropdowns. Click <strong>Launch Recorder</strong> when ready.`;
+  document.getElementById('hdot').className = 'hdot ready';
+  document.getElementById('statusText').textContent = 'READY';
+}
+
+// ══════════════════════════════════════════
+//  ASSIGN CAMERA TO SLOT
+// ══════════════════════════════════════════
+async function assignCam(i) {
+  const deviceId = slotSelects[i].value;
+  const vid  = slotPrevVids[i];
+  const stat = slotStatEls[i];
+  const ovl  = document.getElementById(`slotOvl${i}`);
+  const card = slotCards[i];
+
+  // Stop existing
+  if (slotStreams[i]) {
+    slotStreams[i].getTracks().forEach(t => t.stop());
+    slotStreams[i] = null;
+    vid.srcObject = null;
+  }
+
+  if (!deviceId) {
+    stat.textContent = 'UNASSIGNED';
+    stat.className = 'slot-status';
+    card.classList.remove('connected');
+    ovl.style.display = 'flex';
+    document.getElementById(`slotOvlTxt${i}`).textContent = 'NO PREVIEW';
+    checkLaunch(); return;
+  }
+
+  stat.textContent = 'CONNECTING…';
+  stat.className = 'slot-status loading';
+
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { deviceId: { exact: deviceId }, width:{ideal:1280}, height:{ideal:720} },
+      audio: true
+    });
+    slotStreams[i] = stream;
+    vid.srcObject = stream;
+    await new Promise(res => {
+      vid.onloadedmetadata = res;
+      setTimeout(res, 3000);
+    });
+    await vid.play().catch(()=>{});
+
+    ovl.style.display = 'none';
+    card.classList.add('connected');
+
+    const dev = allDevices.find(d => d.deviceId === deviceId);
+    const label = dev?.label || `Camera ${i+1}`;
+    stat.textContent = '● LIVE';
+    stat.className = 'slot-status ok';
+    // Short clean name for recording label
+    slotNames[i] = label.replace(/\s*\([0-9a-f:,\s]+\)\s*/gi,'').trim().slice(0,24) || DEFAULT_NAMES[i];
+  } catch(e) {
+    stat.textContent = '✗ ' + (e.name||'ERROR');
+    stat.className = 'slot-status err';
+    ovl.style.display = 'flex';
+    document.getElementById(`slotOvlTxt${i}`).textContent = 'FAILED';
+    slotNames[i] = DEFAULT_NAMES[i];
+  }
+  checkLaunch();
+}
+
+function checkLaunch() {
+  const ok = slotStreams.some(Boolean);
+  document.getElementById('btnLaunch').disabled = !ok;
+  document.getElementById('setupHint').textContent = ok
+    ? `${slotStreams.filter(Boolean).length} CAMERA${slotStreams.filter(Boolean).length>1?'S':''} READY — CLICK TO BEGIN`
+    : 'ASSIGN AT LEAST ONE CAMERA TO CONTINUE';
+}
+
+// ══════════════════════════════════════════
+//  LAUNCH RECORDER
+// ══════════════════════════════════════════
+function launchRecorder() {
+  const grid = document.getElementById('camGrid');
+  const indContainer = document.getElementById('camIndicators');
+  grid.innerHTML = '';
+  indContainer.innerHTML = '';
+  canvases = []; ctxs = []; recStreams = Array(NUM_SLOTS).fill(null);
+
+  for (let i = 0; i < NUM_SLOTS; i++) {
+    const src = slotStreams[i];
+    const label = slotNames[i];
+
+    // Camera cell
+    const cell = document.createElement('div');
+    cell.className = 'cam-cell';
+    cell.innerHTML = `
+      <video id="rv${i}" autoplay muted playsinline></video>
+      <canvas id="rc${i}"></canvas>
+      <div class="cam-ui"></div>
+      <div class="cam-corner-tr"></div>
+      <div class="cam-corner-bl"></div>
+      <div class="cam-badge-label" id="rLabel${i}">${label}</div>
+      <div class="cam-badge-num">${i+1}</div>
+      <div class="rec-badge"   id="rRec${i}"><span class="dot"></span>REC</div>
+      <div class="pause-badge" id="rPause${i}">PAUSED</div>
+      ${!src ? `<div class="no-signal-rec">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/>
+          <line x1="1" y1="1" x2="23" y2="23"/>
+        </svg>NO SIGNAL</div>` : ''}`;
+    grid.appendChild(cell);
+
+    const cvs = document.getElementById(`rc${i}`);
+    canvases.push(cvs);
+    ctxs.push(cvs.getContext('2d'));
+
+    if (src) {
+      recStreams[i] = src;
+      const vid = document.getElementById(`rv${i}`);
+      vid.srcObject = src;
+      vid.play().catch(()=>{});
+      startCanvasLoop(i);
+    } else {
+      // Static "no signal" canvas
+      cvs.width = 640; cvs.height = 360;
+      const ctx = ctxs[i];
+      ctx.fillStyle = '#020305';
+      ctx.fillRect(0,0,640,360);
+    }
+
+    // Status indicator in controls bar
+    const ind = document.createElement('div');
+    ind.className = 'cam-ind';
+    ind.innerHTML = `
+      <span class="cam-ind-dot ${src ? 'live' : 'nosig'}" id="ind${i}"></span>
+      <span>${label.slice(0,10)}</span>`;
+    indContainer.appendChild(ind);
+  }
+
+  document.getElementById('setupScreen').style.display = 'none';
+  document.getElementById('recScreen').style.display = 'flex';
+  document.getElementById('statusText').textContent = 'READY';
+  document.getElementById('hdot').className = 'hdot ready';
+}
+
+// ══════════════════════════════════════════
+//  CANVAS LOOP — burns timestamp into video
+// ══════════════════════════════════════════
+function startCanvasLoop(i) {
+  const vid = document.getElementById(`rv${i}`);
+  const cvs = canvases[i];
+  const ctx = ctxs[i];
+
+  (function draw() {
+    if (vid.readyState >= 2) {
+      const W = vid.videoWidth  || 1280;
+      const H = vid.videoHeight || 720;
+      if (cvs.width !== W || cvs.height !== H) { cvs.width = W; cvs.height = H; }
+
+      ctx.drawImage(vid, 0, 0, W, H);
+
+      // ── Burned-in timestamp ──
+      const now   = new Date();
+      const dStr  = `${fmtDFile(now)}`;
+      const tStr  = `${fmtT(now)}`;
+      const label = slotNames[i];
+
+      const fs = Math.max(14, Math.round(H * 0.028));
+      ctx.font = `${fs}px "Share Tech Mono", monospace`;
+
+      // Background bar bottom
+      ctx.fillStyle = 'rgba(0,0,0,0.65)';
+      ctx.fillRect(0, H - fs*2.4, W, fs*2.4);
+
+      // Camera name (left)
+      ctx.fillStyle = 'rgba(0,207,255,0.9)';
+      ctx.textAlign = 'left';
+      ctx.fillText(label, 12, H - fs*1.2);
+
+      // Date (center)
+      ctx.fillStyle = 'rgba(200,216,240,0.8)';
+      ctx.textAlign = 'center';
+      ctx.fillText(dStr, W/2, H - fs*1.2);
+
+      // Time (right)
+      ctx.fillStyle = 'rgba(255,255,255,0.95)';
+      ctx.textAlign = 'right';
+      ctx.fillText(tStr, W - 12, H - fs*1.2);
+    }
+    requestAnimationFrame(draw);
+  })();
+}
+
+// ══════════════════════════════════════════
+//  RECORDING CONTROLS
+// ══════════════════════════════════════════
+function getMime() {
+  const list = [
+    'video/webm;codecs=vp9,opus',
+    'video/webm;codecs=vp8,opus',
+    'video/webm',
+    'video/mp4'
+  ];
+  return list.find(t => MediaRecorder.isTypeSupported(t)) || '';
+}
+
+function setStatus(s) {
+  const dot = document.getElementById('hdot');
+  const txt = document.getElementById('statusText');
+  dot.className = 'hdot' + (s==='rec'?' rec': s==='paused'?' paused': s==='ready'?' ready': '');
+  txt.textContent = s==='rec'?'RECORDING': s==='paused'?'PAUSED': 'READY';
+}
+
+function setBadges(s) {
+  for (let i = 0; i < NUM_SLOTS; i++) {
+    const rb = document.getElementById(`rRec${i}`);
+    const pb = document.getElementById(`rPause${i}`);
+    const id = document.getElementById(`ind${i}`);
+    if (!recStreams[i]) continue;
+    if (rb) rb.className    = 'rec-badge'   + (s==='rec'   ? ' show' : '');
+    if (pb) pb.className    = 'pause-badge' + (s==='paused'? ' show' : '');
+    if (id) id.className    = 'cam-ind-dot' + (s==='rec'?' live': s==='paused'?' paused': ' live');
+  }
+}
+
+function timerTick() {
+  elapsed++;
+  document.getElementById('timer').textContent =
+    `${PAD(Math.floor(elapsed/60))}:${PAD(elapsed%60)}`;
+}
+
+async function startRec() {
+  if (recState !== 'idle') return;
+
+  chunks  = Array.from({length:NUM_SLOTS},()=>[]);
+  elapsed = 0;
+  document.getElementById('timer').textContent = '00:00';
+
+  const mime = getMime();
+  let started = 0;
+
+  for (let i = 0; i < NUM_SLOTS; i++) {
+    if (!recStreams[i]) continue;
+    try {
+      const cs = canvases[i].captureStream(30);
+      // Add original audio tracks
+      recStreams[i].getAudioTracks().forEach(t => cs.addTrack(t));
+
+      const mr = new MediaRecorder(cs, { mimeType: mime, videoBitsPerSecond: 4000000 });
+      mr.ondataavailable = e => { if (e.data?.size > 0) chunks[i].push(e.data); };
+      mr.start(250);
+      recorders[i] = mr;
+      started++;
+    } catch(e) { console.warn(`Recorder cam ${i}:`, e); }
+  }
+
+  if (!started) { alert('No active cameras to record.'); return; }
+
+  recState = 'rec';
+  timerIv  = setInterval(timerTick, 1000);
+  setStatus('rec'); setBadges('rec');
+
+  document.getElementById('btnStart').disabled = true;
+  document.getElementById('btnPause').disabled = false;
+  document.getElementById('btnEnd').disabled   = false;
+  document.getElementById('btnBack').disabled  = true;
+  document.getElementById('btnPause').querySelector('span').textContent = '⏸ PAUSE';
+}
+
+function togglePause() {
+  if (recState === 'rec') {
+    recorders.forEach(mr => mr?.state === 'recording' && mr.pause());
+    clearInterval(timerIv);
+    recState = 'paused'; setStatus('paused'); setBadges('paused');
+    document.getElementById('btnPause').querySelector('span').textContent = '▶ RESUME';
+  } else if (recState === 'paused') {
+    recorders.forEach(mr => mr?.state === 'paused' && mr.resume());
+    timerIv = setInterval(timerTick, 1000);
+    recState = 'rec'; setStatus('rec'); setBadges('rec');
+    document.getElementById('btnPause').querySelector('span').textContent = '⏸ PAUSE';
+  }
+}
+
+function endRec() {
+  if (recState === 'idle') return;
+
+  const proms = [];
+  for (let i = 0; i < NUM_SLOTS; i++) {
+    const mr = recorders[i];
+    if (mr && mr.state !== 'inactive') {
+      proms.push(new Promise(res => { mr.onstop = res; mr.stop(); }));
+    }
+  }
+  Promise.all(proms).then(() => saveVideos());
+
+  clearInterval(timerIv);
+  recState = 'idle'; setStatus('ready'); setBadges('idle');
+
+  document.getElementById('btnStart').disabled = false;
+  document.getElementById('btnPause').disabled = true;
+  document.getElementById('btnEnd').disabled   = true;
+  document.getElementById('btnBack').disabled  = false;
+  document.getElementById('btnPause').querySelector('span').textContent = '⏸ PAUSE';
+}
+
+async function saveVideos() {
+  const now  = new Date();
+  const PAD2 = n => String(n).padStart(2,'0');
+
+  // Folder name:  Recording_YYYY-MM-DD_HH-MM-SS
+  const folder = `Recording_${now.getFullYear()}-${PAD2(now.getMonth()+1)}-${PAD2(now.getDate())}_${PAD2(now.getHours())}-${PAD2(now.getMinutes())}-${PAD2(now.getSeconds())}`;
+
+  // File timestamp (same session stamp for all 4 cams)
+  const ts   = `${now.getFullYear()}-${PAD2(now.getMonth()+1)}-${PAD2(now.getDate())}_${PAD2(now.getHours())}-${PAD2(now.getMinutes())}-${PAD2(now.getSeconds())}`;
+  const mime = getMime();
+  const ext  = mime.includes('mp4') ? 'mp4' : 'webm';
+
+  document.getElementById('savesSection').style.display = 'flex';
+  const linksEl = document.getElementById('saveLinks');
+
+  // Show folder info
+  const folderNote = document.createElement('div');
+  folderNote.style.cssText = 'font-family:Share Tech Mono,monospace;font-size:9px;letter-spacing:2px;color:var(--accent);margin-bottom:4px;';
+  folderNote.textContent = '📁 ' + folder;
+  linksEl.appendChild(folderNote);
+
+  const saveStatus = document.createElement('div');
+  saveStatus.style.cssText = 'font-family:Share Tech Mono,monospace;font-size:9px;letter-spacing:2px;color:var(--pause);';
+  saveStatus.textContent = 'SAVING…';
+  linksEl.appendChild(saveStatus);
+
+  let saved = 0;
+  let serverAvailable = true;
+
+  for (let i = 0; i < NUM_SLOTS; i++) {
+    if (!chunks[i].length) continue;
+
+    const blob = new Blob(chunks[i], { type: mime });
+    const safe = slotNames[i].replace(/[^a-zA-Z0-9_\-]/g,'_');
+    const filename = `${safe}_${ts}.${ext}`;
+
+    if (serverAvailable) {
+      try {
+        // POST to Python server — it saves into the dated folder
+        const res = await fetch('/save', {
+          method: 'POST',
+          headers: {
+            'X-Folder':   folder,
+            'X-Filename': filename,
+            'Content-Type': mime || 'video/webm'
+          },
+          body: blob
+        });
+
+        if (res.ok) {
+          const json = await res.json();
+          const link = document.createElement('div');
+          link.style.cssText = 'font-family:Share Tech Mono,monospace;font-size:9px;letter-spacing:1px;color:var(--green);padding:2px 0;';
+          link.textContent = `✓ ${filename}`;
+          linksEl.appendChild(link);
+          saved++;
+          continue;
+        }
+      } catch(e) {
+        serverAvailable = false;  // Fall back to browser download
+      }
+    }
+
+    // Fallback: browser download if server not responding
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename; a.className = 'save-link';
+    a.innerHTML = `<span class="dl-icon">↓</span>${filename}`;
+    linksEl.appendChild(a);
+    Object.assign(document.createElement('a'), {href:url, download:filename}).click();
+    saved++;
+  }
+
+  saveStatus.textContent = saved > 0
+    ? `✓ ${saved} FILE${saved>1?'S':''} SAVED TO FOLDER`
+    : '✗ NO FILES TO SAVE';
+  saveStatus.style.color = saved > 0 ? 'var(--green)' : 'var(--rec)';
+}
+
+function goBack() {
+  if (recState !== 'idle') {
+    if (!confirm('Stop current recording and return to camera setup?')) return;
+    endRec();
+    // Wait for save to finish
+    setTimeout(_goBack, 500);
+  } else {
+    _goBack();
+  }
+}
+function _goBack() {
+  document.getElementById('recScreen').style.display = 'none';
+  document.getElementById('setupScreen').style.display = 'flex';
+  document.getElementById('statusText').textContent = 'SETUP';
+  document.getElementById('hdot').className = 'hdot ready';
+}
+
+// ══════════════════════════════════════════
+//  BOOT
+// ══════════════════════════════════════════
+init();
+</script>
+</body>
+</html>
